@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tokenize Toggle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ease: cubic-bezier(.65, 0, .25, 1);
+    --dur: 700ms;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { overflow: hidden; background: #e6e8f3; }
+
+  /* Сцена в размерах макета 2880×1620, масштабируется под окно */
+  .stage {
+    position: absolute; left: 50%; top: 50%;
+    width: 2880px; height: 1620px;
+    transform-origin: 0 0;
+    overflow: hidden;
+  }
+  .bg { position: absolute; inset: 0; display: block; }
+
+  /* Ellipse 42291 — angular gradient, layer blur 250 */
+  .glow {
+    position: absolute;
+    left: 1711px; top: 810px;          /* центр эллипса */
+    width: 1276px; height: 1276px;     /* 776 + 2×250 под блюр */
+    margin: -638px 0 0 -638px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur) var(--ease);
+    will-change: transform, opacity;
+  }
+  .glow.css-blur { filter: blur(125px); }
+
+  /* Logo_lockup */
+  .lockup {
+    position: absolute;
+    left: 1035.008px; top: 687.528px;
+    width: 809.992px; height: 244.931px;
+    background: rgb(249.817, 250.854, 255);
+    border-radius: 300.793px;
+    overflow: hidden;
+    box-shadow:
+      0 45.119px 98.832px 0 rgba(23,0,87,.1),
+      0 178.327px 178.327px 0 rgba(23,0,87,.09),
+      0 401.773px 240.634px 0 rgba(23,0,87,.05),
+      0 713.309px 285.753px 0 rgba(23,0,87,.01),
+      0 1112.934px 311.535px 0 rgba(23,0,87,0);
+    cursor: pointer;
+    user-select: none;
+    outline: none;
+  }
+
+  .label {
+    position: absolute;
+    left: 67.4px; top: 79.966px;
+    font-family: "Google Sans Flex", "Google Sans", system-ui, sans-serif;
+    font-weight: 500;
+    font-size: 81.304px;
+    line-height: 1.05;
+    letter-spacing: -1.6261px;
+    font-variation-settings: "GRAD" 0, "ROND" 0, "wdth" 100;
+    color: #1d1c21;
+    white-space: nowrap;
+  }
+
+  /* Frame 2147261322 — трек */
+  .track {
+    position: absolute;
+    left: 445.858px; top: 57.992px;
+    width: 296.736px; height: 128.948px;
+    border-radius: 99.646px;
+    background: rgb(204.527, 201.011, 213.317);
+    transition: background-color var(--dur) var(--ease);
+  }
+  .track-layer {
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #1d1c21 21.435%, rgb(118.636,114.545,135) 213.42%);
+    box-shadow: inset 0 12.429px 28.586px 0 #000;
+    transition: opacity var(--dur) var(--ease);
+  }
+  .track-layer--on { transform: rotate(180deg); opacity: 0; }
+
+  /* Ellipse 42274 — кружок */
+  .knob {
+    position: absolute;
+    left: 458.992px; top: 69.79px;
+    width: 105.341px; height: 105.341px;
+    transition: transform var(--dur) var(--ease);
+  }
+  .knob svg { position: absolute; inset: 0; display: block; transition: opacity var(--dur) var(--ease); }
+  .knob .k-on { opacity: 0; }
+  .knob::after {   /* Inner shadow 0 5.343 / 5.343, #fff 25% */
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    box-shadow: inset 0 5.343px 5.343px 0 rgba(255,255,255,.25);
+    pointer-events: none;
+  }
+
+  /* Состояние 1 */
+  .is-on .glow { opacity: 1; }
+  .is-on .track { background-color: #1d1c21; }
+  .is-on .track-layer--off { opacity: 0; }
+  .is-on .track-layer--on { opacity: 1; }
+  .is-on .knob { transform: translateX(164.483px); }
+  .is-on .knob .k-off { opacity: 0; }
+  .is-on .knob .k-on { opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) { :root { --dur: 0ms; } }
+</style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <svg class="bg" id="bg" width="2880" height="1620" viewBox="0 0 2880 1620"></svg>
+    <canvas class="glow" id="glow" aria-hidden="true"></canvas>
+
+    <div class="lockup" id="lockup" tabindex="0" role="switch" aria-checked="false" aria-label="Tokenize">
+      <span class="label">Tokenize</span>
+      <div class="track">
+        <div class="track-layer track-layer--off"></div>
+        <div class="track-layer track-layer--on"></div>
+      </div>
+      <div class="knob" id="knob"></div>
+    </div>
+  </div>
+
+<script>
+/* ---------- Данные из Figma (Plugin API) ---------- */
+const FIGMA = {
+  bg: { T: [[0.357, 0.81, -0.245], [-0.81, 0.113, 0.884]],
+        stops: [[0, 242,242,249,1], [1, 208,214,237,1]] },
+  knobFill: { T: [[0.738, 0.763, -0.281], [-0.763, 0.738, 0.482]],
+              stops: [[0, 29,28,33,1], [0.53, 42.577,41.109,48.45,1], [1, 29,28,33,1]] },
+  knobStrokeOff: { T: [[0.046, 0.171, 0.463], [-0.171, 0.046, 0.503]],
+                   stops: [[0, 255,255,255,1], [1, 16.065,15.351,17.85,1]] },
+  knobStrokeOn: { T: [[0.214, 0.214, 0.527], [-0.214, 0.214, 0.527]],
+                  stops: [[0.125,230,33,255,0],[0.167,255,134,34,0.518],[0.255,255,134,34,1],[0.36,255,191,53,1],
+                          [0.543,255,255,255,1],[0.594,255,255,255,1],[0.738,92,68,249,1],[0.923,230,33,255,0.16]] },
+  glow: { T: [[-0.084, -0.488, 0.787], [0.479, -0.099, 0.303]],
+          stops: [[0.125,230,33,255,0],[0.167,255,152,67,0.518],[0.255,255,152,67,1],[0.36,255,191,53,1],
+                  [0.543,255,255,255,1],[0.594,255,255,255,1],[0.738,92,68,249,1],[0.923,230,33,255,0.16]],
+          size: 776, blur: 250, rotation: 135 }
+};
+
+/* Figma gradientTransform (узел → пространство градиента) → SVG matrix (градиент → px) */
+function svgMatrix(T, w, h) {
+  const [[a, b, c], [d, e, f]] = T, det = a * e - b * d;
+  const i = [[e / det, -b / det, (b * f - c * e) / det], [-d / det, a / det, (c * d - a * f) / det]];
+  return `matrix(${w * i[0][0]} ${h * i[1][0]} ${w * i[0][1]} ${h * i[1][1]} ${w * i[0][2]} ${h * i[1][2]})`;
+}
+function stopsSvg(stops) {
+  return stops.map(([p, r, g, b, a]) =>
+    `<stop offset="${p}" stop-color="rgb(${r},${g},${b})" stop-opacity="${a}"/>`).join('');
+}
+const linear = (id, P, w, h) =>
+  `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1" y2="0" gradientTransform="${svgMatrix(P.T, w, h)}">${stopsSvg(P.stops)}</linearGradient>`;
+const radial = (id, P, w, h) =>
+  `<radialGradient id="${id}" gradientUnits="userSpaceOnUse" cx="0.5" cy="0.5" r="0.5" gradientTransform="${svgMatrix(P.T, w, h)}">${stopsSvg(P.stops)}</radialGradient>`;
+
+/* Фон фрейма */
+document.getElementById('bg').innerHTML =
+  `<defs>${linear('bgG', FIGMA.bg, 2880, 1620)}</defs><rect width="2880" height="1620" fill="url(#bgG)"/>`;
+
+/* Кружок: fill + stroke INSIDE 10.743 */
+function knobSvg(cls, strokeP, id) {
+  const S = 105.341, sw = 10.743, c = S / 2;
+  return `<svg class="${cls}" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
+    <defs>${linear(id + 'F', FIGMA.knobFill, S, S)}${radial(id + 'S', strokeP, S, S)}</defs>
+    <circle cx="${c}" cy="${c}" r="${c}" fill="url(#${id}F)"/>
+    <circle cx="${c}" cy="${c}" r="${c - sw / 2}" fill="none" stroke="url(#${id}S)" stroke-width="${sw}"/>
+  </svg>`;
+}
+document.getElementById('knob').innerHTML =
+  knobSvg('k-off', FIGMA.knobStrokeOff, 'ko') + knobSvg('k-on', FIGMA.knobStrokeOn, 'kn');
+
+/* Свечение: угловой градиент попиксельно по матрице Figma + блюр */
+function sampleStops(stops, t) {
+  if (t <= stops[0][0]) return stops[0].slice(1);
+  const last = stops[stops.length - 1];
+  if (t >= last[0]) return last.slice(1);
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i][0]) {
+      const A = stops[i - 1], B = stops[i], k = (t - A[0]) / (B[0] - A[0]);
+      return [1, 2, 3, 4].map(j => A[j] + (B[j] - A[j]) * k);
+    }
+  }
+}
+(function renderGlow() {
+  const G = FIGMA.glow, k = 0.5;                       // половинное разрешение — всё равно под блюром
+  const d = Math.round(G.size * k), pad = Math.round(G.blur * k), full = d + pad * 2;
+  const src = document.createElement('canvas'); src.width = src.height = d;
+  const sctx = src.getContext('2d'), img = sctx.createImageData(d, d), [[a, b, c], [e, f, g]] = G.T;
+  for (let py = 0; py < d; py++) for (let px = 0; px < d; px++) {
+    const x = (px + .5) / d, y = (py + .5) / d;
+    const dist = Math.hypot(x - .5, y - .5) * d, cov = Math.min(1, Math.max(0, d / 2 - dist + .5));
+    if (!cov) continue;
+    const gx = a * x + b * y + c - .5, gy = e * x + f * y + g - .5;
+    let t = Math.atan2(gy, gx) / (2 * Math.PI); if (t < 0) t += 1;
+    const [R, Gc, B, A] = sampleStops(G.stops, t), o = (py * d + px) * 4;
+    img.data[o] = R; img.data[o + 1] = Gc; img.data[o + 2] = B; img.data[o + 3] = A * cov * 255;
+  }
+  sctx.putImageData(img, 0, 0);
+
+  const out = document.getElementById('glow'); out.width = out.height = full;
+  const ctx = out.getContext('2d');
+  // проверка поддержки ctx.filter, иначе блюр через CSS
+  const probe = document.createElement('canvas').getContext('2d');
+  probe.filter = 'blur(2px)';
+  const canFilter = probe.filter === 'blur(2px)';
+  if (canFilter) ctx.filter = `blur(${G.blur * k / 2}px)`; else out.classList.add('css-blur');
+  ctx.drawImage(src, pad, pad);
+})();
+
+/* ---------- Масштаб сцены ---------- */
+const stage = document.getElementById('stage');
+function fit() {
+  const s = Math.max(innerWidth / 2880, innerHeight / 1620);
+  stage.style.transform = `scale(${s}) translate(-50%, -50%)`;
+}
+addEventListener('resize', fit); fit();
+
+/* ---------- Ховер + вращение свечения ---------- */
+const lockup = document.getElementById('lockup');
+const glow = document.getElementById('glow');
+const BASE = -FIGMA.glow.rotation;   // Figma 135° = CSS -135°
+const TAU = 400;                     // мс — «характер» быстрого оборота (пик скорости при t = TAU)
+const SLOW = 14;                     // °/с — медленное вращение дальше
+const FADE_MS = 700;
+const LEAD = 80;                     // насколько раньше стартует вращение, мс
+// Быстрый оборот на 360° как отклик критически демпфированной пружины:
+// мягкий разгон, затем скорость экспоненциально стекает в медленное вращение — без «стыка».
+const spin = ms => { const x = ms / TAU; return 1 - (1 + x) * Math.exp(-x); };
+
+let angle = 0, startAngle = 0, t0 = 0, hovering = false, raf = 0, leaveAt = 0;
+
+function frame(now) {
+  const dt = now - t0;
+  angle = startAngle + 360 * spin(dt) + SLOW * dt / 1000;
+  glow.style.transform = `rotate(${BASE + angle}deg)`;
+  if (hovering || now - leaveAt < FADE_MS) raf = requestAnimationFrame(frame);
+  else { raf = 0; angle %= 360; }
+}
+function enter() {
+  if (hovering) return;
+  hovering = true;
+  // старт с форой LEAD мс: вращение начинается сразу с ненулевой скоростью, без скачка угла
+  t0 = performance.now() - LEAD;
+  startAngle = angle % 360 - (360 * spin(LEAD) + SLOW * LEAD / 1000);
+  stage.classList.add('is-on');
+  lockup.setAttribute('aria-checked', 'true');
+  if (!raf) raf = requestAnimationFrame(frame);
+}
+function leave() {
+  if (!hovering) return;
+  hovering = false; leaveAt = performance.now();
+  stage.classList.remove('is-on');
+  lockup.setAttribute('aria-checked', 'false');
+}
+glow.style.transform = `rotate(${BASE}deg)`;
+lockup.addEventListener('mouseenter', enter);
+lockup.addEventListener('mouseleave', leave);
+lockup.addEventListener('focus', enter);
+lockup.addEventListener('blur', leave);
+</script>
+</body>
+</html>
